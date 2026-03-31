@@ -70,6 +70,7 @@ class SelfPlayActorCriticAgent:
         action_mask = torch.from_numpy(action_mask_np).to(self.device)
 
         invalid_entries = action_mask <= 0.0
+        # Mask invalid actions by pushing their logits far negative before sampling.
         large_negative = torch.full_like(logits, -1000000000.0)
         masked_logits = torch.where(invalid_entries, large_negative, logits)
 
@@ -80,6 +81,7 @@ class SelfPlayActorCriticAgent:
         return action_index, action_log_prob, value.squeeze(-1), state_tensor
 
     def _compute_discounted_returns(self, transitions: List[AgentTransition]) -> torch.Tensor:
+        # Compute discounted return from the end of each episode segment.
         discounted_returns = []
         running_return = 0.0
         transition_index = len(transitions) - 1
@@ -103,10 +105,11 @@ class SelfPlayActorCriticAgent:
         values = torch.stack([transition.state_value for transition in transitions]).squeeze(-1)
         advantages = returns_tensor - values.detach()
 
+        # Advantage = (discounted return - critic value). Use it for the policy gradient term.
         policy_loss = -(log_probs * advantages).mean()
         value_loss = torch.mean((returns_tensor - values) ** 2)
 
-        # Recompute policy distribution for an entropy regularization estimate.
+        # Entropy term discourages premature collapse to one move.
         entropy_values = []
         for transition in transitions:
             logits, _ = self.model(transition.state_tensor)

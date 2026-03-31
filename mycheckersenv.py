@@ -139,6 +139,7 @@ class CheckersAECEnv(AECEnv):
 
         self._cumulative_rewards[current_agent] = 0.0
         legal_actions = self._legal_action_indices_for_agent(current_agent)
+        # If an agent proposes an action that isn't legal, we end the game immediately.
         if action is None or action not in legal_actions:
             self._apply_illegal_move_penalty(current_agent)
             self._accumulate_rewards()
@@ -165,6 +166,7 @@ class CheckersAECEnv(AECEnv):
                 to_row, to_col, landing_piece, player_is_zero
             )
             if len(further_captures) > 0:
+                # Multi-jump rule: the same player keeps moving with the same piece.
                 self.must_continue_jump = (to_row, to_col)
                 self._refresh_masks_for_all_agents()
                 self._accumulate_rewards()
@@ -196,11 +198,13 @@ class CheckersAECEnv(AECEnv):
             self.render()
 
     def _decode_and_validate_action(self, action, agent):
+        # Action encoding: from_square * 8 + direction_code.
         from_square = action // ACTION_DIRECTIONS
         direction_code = action % ACTION_DIRECTIONS
         from_row = from_square // BOARD_SIZE
         from_col = from_square % BOARD_SIZE
 
+        # First 4 codes are one-step diagonals, last 4 codes are the two-step jumps.
         direction_vectors = [
             (-1, -1), (-1, 1), (1, -1), (1, 1),
             (-2, -2), (-2, 2), (2, -2), (2, 2),
@@ -248,6 +252,7 @@ class CheckersAECEnv(AECEnv):
             current_piece = self.board[row_index, col_index]
             if not self._piece_belongs_to_agent(current_piece, player_is_zero):
                 return []
+            # During a forced multi-jump, only capture moves from the landing square are allowed.
             piece_value = int(current_piece)
             _, piece_captures = self._moves_for_piece(
                 row_index, col_index, piece_value, player_is_zero
@@ -280,6 +285,7 @@ class CheckersAECEnv(AECEnv):
         return capture_list
 
     def _winner_if_side_has_no_pieces(self) -> Optional[str]:
+        # Win by elimination: if a side has zero remaining pieces, the other side wins.
         player_zero_count = 0
         player_one_count = 0
         row_index = 0
@@ -308,6 +314,7 @@ class CheckersAECEnv(AECEnv):
             to_row = row_index + row_delta
             to_col = col_index + col_delta
             if self._is_cell_on_board(to_row, to_col) and self.board[to_row, to_col] == EMPTY:
+                # Normal move: land on the next diagonal empty square.
                 action_index = self._encode_action(row_index, col_index, row_delta, col_delta)
                 normal_actions.append(action_index)
 
@@ -318,6 +325,7 @@ class CheckersAECEnv(AECEnv):
             if self._is_cell_on_board(jump_row, jump_col) and self.board[jump_row, jump_col] == EMPTY:
                 jumped_piece = self.board[mid_row, mid_col]
                 if self._is_opponent_piece(jumped_piece, player_is_zero):
+                    # Capture move: jump over an opponent piece into an empty landing square.
                     jump_action = self._encode_action(row_index, col_index, 2 * row_delta, 2 * col_delta)
                     capture_actions.append(jump_action)
         return normal_actions, capture_actions

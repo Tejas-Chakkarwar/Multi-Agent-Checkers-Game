@@ -12,6 +12,7 @@ def run_training(
     print_every: int = 20,
     seed: int = 42,
 ) -> Tuple[SelfPlayActorCriticAgent, List[float]]:
+    # Self-play: the same model plays as both player_0 and player_1.
     training_env = create_env(render_mode=None)
     training_env.reset(seed=seed)
     sample_observation = training_env.observe("player_0")
@@ -79,6 +80,7 @@ def run_training(
 
 
 def run_sample_game(trained_agent: SelfPlayActorCriticAgent, seed: int = 999) -> Dict[str, float]:
+    # Greedy-ish rollouts: we sample from the trained policy under the action mask.
     evaluation_env = create_env(render_mode="human")
     evaluation_env.reset(seed=seed)
     cumulative_rewards = {"player_0": 0.0, "player_1": 0.0}
